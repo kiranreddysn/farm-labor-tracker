@@ -7,12 +7,19 @@ import WorkerProfile from "./components/workers/WorkerProfile";
 import ReportsPage from "./components/reports/ReportsPage";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { AuthProvider } from "./components/auth/AuthProvider";
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 
 function App() {
   return (
     <AuthProvider>
-      <Suspense fallback={<p>Loading...</p>}>
+      <Suspense
+        fallback={
+          <p>
+            Loading...<div className="w-[800px] h-[600px]"></div>
+          </p>
+        }
+      >
         <>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
