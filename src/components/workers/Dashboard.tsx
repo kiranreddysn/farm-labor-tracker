@@ -276,15 +276,6 @@ export function Dashboard() {
     const worker = workers.find((w) => w.id === workerId);
     setSelectedWorker(worker);
     setLogShiftOpen(true);
-
-    // Log which worker we're adding a shift for
-    if (worker) {
-      console.log(`Logging shift for: ${worker.name}`);
-      toast({
-        title: "Logging Shift",
-        description: `Recording hours for ${worker.name}`,
-      });
-    }
   };
 
   // Handle saving a shift
@@ -323,14 +314,6 @@ export function Dashboard() {
     setSelectedWorker(worker);
     setRecordPaymentOpen(true);
 
-    // Log which worker we're recording payment for
-    if (worker) {
-      console.log(`Recording payment for: ${worker.name}`);
-      toast({
-        title: "Recording Payment",
-        description: `Recording payment for ${worker.name}`,
-      });
-    }
   };
 
   // Handle viewing worker history
