@@ -36,10 +36,6 @@ export default function LoginPage() {
           variant: "destructive",
         });
       } else {
-        toast({
-          title: "Login Successful",
-          description: "Welcome to Farm Labor Tracker",
-        });
         navigate("/");
       }
     } catch (error) {
@@ -69,7 +65,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="kirankumarsn.n@gmail.com"
+                placeholder="youremail@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
