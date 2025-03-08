@@ -3,6 +3,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WorkerCard, Worker } from "./WorkerCard";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { WorkerTable } from "./WorkerTable";
 import { WorkerForm } from "./WorkerForm";
 import { ShiftForm } from "./ShiftForm";
@@ -26,6 +36,7 @@ import {
   updateWorker,
   createShift,
   createPayment,
+  deleteWorker,
 } from "@/lib/api";
 import {
   Select,
@@ -111,6 +122,7 @@ export function Dashboard() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<Worker | undefined>(
     undefined,
   );
@@ -325,6 +337,40 @@ export function Dashboard() {
     setHistoryOpen(true);
   };
 
+  // Handle deleting a worker
+  const handleDeleteWorker = (workerId: string) => {
+    const worker = workers.find((w) => w.id === workerId);
+    setSelectedWorker(worker);
+    setDeleteDialogOpen(true);
+  };
+
+  // Confirm worker deletion
+  const confirmDeleteWorker = async () => {
+    if (!selectedWorker) return;
+
+    try {
+      const success = await deleteWorker(selectedWorker.id);
+      if (success) {
+        // Remove worker from state
+        setWorkers(workers.filter((w) => w.id !== selectedWorker.id));
+        toast({
+          title: "Success",
+          description: `Worker ${selectedWorker.name} has been deleted.`,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to delete worker:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete worker. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setSelectedWorker(undefined);
+    }
+  };
+
   // Handle saving a payment
   const handleSavePayment = async (paymentData: {
     workerId: string;
@@ -483,6 +529,7 @@ export function Dashboard() {
                     onRecordPayment={handleRecordPayment}
                     onEditWorker={handleEditWorker}
                     onViewHistory={handleViewHistory}
+                    onDeleteWorker={handleDeleteWorker}
                   />
                 ))}
               </div>
@@ -495,6 +542,7 @@ export function Dashboard() {
                 onRecordPayment={handleRecordPayment}
                 onEditWorker={handleEditWorker}
                 onViewHistory={handleViewHistory}
+                onDeleteWorker={handleDeleteWorker}
                 onSortColumn={handleSortColumn}
               />
             </TabsContent>
@@ -556,6 +604,28 @@ export function Dashboard() {
         onOpenChange={setBulkImportOpen}
         onSuccess={loadWorkers}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedWorker?.name}'s profile and
+              all associated shifts and payment records. This action cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteWorker}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete Worker
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

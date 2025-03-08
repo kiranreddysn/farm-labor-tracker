@@ -26,6 +26,7 @@ interface WorkerTableProps {
   onRecordPayment: (workerId: string) => void;
   onEditWorker: (workerId: string) => void;
   onViewHistory: (workerId: string) => void;
+  onDeleteWorker: (workerId: string) => void;
   onSortColumn: (column: string) => void;
 }
 
@@ -35,6 +36,7 @@ export function WorkerTable({
   onRecordPayment,
   onEditWorker,
   onViewHistory,
+  onDeleteWorker,
   onSortColumn,
 }: WorkerTableProps) {
   const { user } = useAuth();
@@ -150,6 +152,14 @@ export function WorkerTable({
                     >
                       {!canWrite && <Lock className="h-3 w-3 mr-1" />}
                       Edit Worker
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onDeleteWorker(worker.id)}
+                      disabled={!canWrite}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      {!canWrite && <Lock className="h-3 w-3 mr-1" />}
+                      Delete Worker
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

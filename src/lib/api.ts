@@ -119,6 +119,40 @@ export async function updateWorker(
   return true;
 }
 
+export async function deleteWorker(id: string): Promise<boolean> {
+  // First delete all related shifts and payments
+  try {
+    // Delete shifts
+    const { error: shiftsError } = await supabase
+      .from("shifts")
+      .delete()
+      .eq("worker_id", id);
+
+    if (shiftsError) throw shiftsError;
+
+    // Delete payments
+    const { error: paymentsError } = await supabase
+      .from("payments")
+      .delete()
+      .eq("worker_id", id);
+
+    if (paymentsError) throw paymentsError;
+
+    // Delete worker
+    const { error: workerError } = await supabase
+      .from("workers")
+      .delete()
+      .eq("id", id);
+
+    if (workerError) throw workerError;
+
+    return true;
+  } catch (error) {
+    console.error("Error deleting worker:", error);
+    return false;
+  }
+}
+
 // Shift API functions
 export async function createShift(shift: {
   workerId: string;

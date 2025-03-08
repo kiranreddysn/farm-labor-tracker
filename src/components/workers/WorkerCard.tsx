@@ -7,10 +7,18 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, DollarSign, Edit, UserPlus, Lock, User } from "lucide-react";
+import {
+  Clock,
+  DollarSign,
+  Edit,
+  UserPlus,
+  Lock,
+  User,
+  Trash2,
+} from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { hasWritePermission } from "@/lib/permissions";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 export interface Worker {
   id: string;
@@ -27,6 +35,7 @@ interface WorkerCardProps {
   onRecordPayment: (workerId: string) => void;
   onEditWorker: (workerId: string) => void;
   onViewHistory: (workerId: string) => void;
+  onDeleteWorker?: (workerId: string) => void;
 }
 
 export function WorkerCard({
@@ -35,7 +44,9 @@ export function WorkerCard({
   onRecordPayment,
   onEditWorker,
   onViewHistory,
+  onDeleteWorker,
 }: WorkerCardProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const canWrite = hasWritePermission(user);
   const getStatusColor = (status: string) => {
@@ -52,11 +63,20 @@ export function WorkerCard({
   };
 
   return (
-    <Card className="w-full bg-white border border-gray-200 overflow-hidden">
-      <CardHeader className="pb-2 px-3 sm:px-6">
+    <Card
+      className="w-full bg-white border border-gray-200 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+      onClick={() => navigate(`/worker/${worker.id}`)}
+    >
+      <CardHeader
+        className="pb-2 px-3 sm:px-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2 sm:gap-3">
-            <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border border-gray-200">
+            <Avatar
+              className="h-10 w-10 sm:h-12 sm:w-12 border border-gray-200"
+              onClick={() => navigate(`/worker/${worker.id}`)}
+            >
               <AvatarImage src={worker.avatarUrl} alt={worker.name} />
               <AvatarFallback className="bg-green-50 text-green-700">
                 {worker.name
@@ -86,11 +106,6 @@ export function WorkerCard({
             >
               <Clock className="h-4 w-4" />
             </Button>
-            <Link to={`/worker/${worker.id}`}>
-              <Button variant="ghost" size="icon" title="View Profile">
-                <User className="h-4 w-4" />
-              </Button>
-            </Link>
             <Button
               variant="ghost"
               size="icon"
@@ -104,10 +119,24 @@ export function WorkerCard({
                 <Lock className="h-4 w-4" />
               )}
             </Button>
+            {onDeleteWorker && canWrite && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onDeleteWorker(worker.id)}
+                title="Delete Worker"
+                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pb-3 px-3 sm:px-6">
+      <CardContent
+        className="pb-3 px-3 sm:px-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="grid grid-cols-2 gap-2 mt-2">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-green-700" />
@@ -123,7 +152,10 @@ export function WorkerCard({
           </div>
         </div>
       </CardContent>
-      <CardFooter className="flex gap-2 pt-0 px-3 sm:px-6">
+      <CardFooter
+        className="flex gap-2 pt-0 px-3 sm:px-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button
           variant="outline"
           className="flex-1 border-green-200 hover:bg-green-50 hover:text-green-700"
