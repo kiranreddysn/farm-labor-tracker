@@ -13,9 +13,24 @@ import {
 } from "@/lib/api";
 import { formatDate } from "@/lib/date-utils";
 import { Worker } from "./WorkerCard";
-import { ArrowLeft, Clock, DollarSign, FileText, LogOut } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock,
+  DollarSign,
+  FileText,
+  FileDown,
+  LogOut,
+} from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import { PageContainer } from "@/components/layout/PageContainer";
 
@@ -83,21 +98,23 @@ export default function WorkerProfile() {
   }, [selectedDate, shifts]);
 
   // Function to check if a date has shifts
+
+  // Function to check if a date has shifts
   const hasShifts = (date: Date) => {
     const dateString = date.toISOString().split("T")[0];
     return shifts.some((shift) => shift.shift_date === dateString);
   };
 
   // Function to download worker's data as CSV
-  const downloadWorkerData = () => {
+  const downloadWorkerDataCSV = () => {
     // Combine shifts and payments data
     const combinedData = [
       ...shifts.map((shift) => ({
         Type: "Shift",
         Date: formatDate(shift.shift_date),
         Hours: shift.hours,
-        Rate: `$${shift.hourly_rate.toFixed(2)}`,
-        Amount: `$${shift.total_amount.toFixed(2)}`,
+        Rate: `${shift.hourly_rate.toFixed(2)}`,
+        Amount: `${shift.total_amount.toFixed(2)}`,
         Notes: shift.notes || "",
       })),
       ...payments.map((payment) => ({
@@ -105,7 +122,7 @@ export default function WorkerProfile() {
         Date: formatDate(payment.payment_date),
         Hours: "-",
         Rate: "-",
-        Amount: `$${payment.amount.toFixed(2)}`,
+        Amount: `${payment.amount.toFixed(2)}`,
         Notes: payment.notes || "",
       })),
     ];
@@ -141,6 +158,68 @@ export default function WorkerProfile() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  // Function to download worker's data as PDF
+  const downloadWorkerDataPDF = () => {
+    // Combine shifts and payments data
+    const combinedData = [
+      ...shifts.map((shift) => ({
+        Type: "Shift",
+        Date: formatDate(shift.shift_date),
+        Hours: shift.hours,
+        Rate: `${shift.hourly_rate.toFixed(2)}`,
+        Amount: `${shift.total_amount.toFixed(2)}`,
+        Notes: shift.notes || "",
+      })),
+      ...payments.map((payment) => ({
+        Type: "Payment",
+        Date: formatDate(payment.payment_date),
+        Hours: "-",
+        Rate: "-",
+        Amount: `${payment.amount.toFixed(2)}`,
+        Notes: payment.notes || "",
+      })),
+    ];
+
+    // Sort by date
+    combinedData.sort((a, b) => {
+      return new Date(b.Date).getTime() - new Date(a.Date).getTime();
+    });
+
+    const doc = new jsPDF();
+
+    // Add worker name as title
+    doc.setFontSize(18);
+    doc.text(`${worker?.name} - Complete History`, 14, 22);
+
+    // Add date
+    doc.setFontSize(11);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 30);
+
+    // Add worker stats
+    doc.setFontSize(12);
+    doc.text(`Status: ${worker?.status}`, 14, 40);
+    doc.text(`Hours This Week: ${worker?.hoursThisWeek}`, 14, 48);
+    doc.text(`Payment Due: ${worker?.pendingPayment.toFixed(2)}`, 14, 56);
+
+    // Get headers and prepare data for autotable
+    const headers = Object.keys(combinedData[0]);
+    const tableData = combinedData.map((row) =>
+      headers.map((header) => row[header]),
+    );
+
+    // Create table
+    autoTable(doc, {
+      head: [headers],
+      body: tableData,
+      startY: 65,
+      styles: { fontSize: 10, cellPadding: 3 },
+      headStyles: { fillColor: [76, 175, 80], textColor: [255, 255, 255] },
+    });
+
+    // Save PDF
+    doc.save(`${worker?.name.replace(/ /g, "_")}_complete_history.pdf`);
   };
 
   if (loading) {
@@ -245,14 +324,27 @@ export default function WorkerProfile() {
                 </div>
 
                 <div className="flex justify-center">
-                  <Button
-                    variant="outline"
-                    onClick={downloadWorkerData}
-                    className="w-full flex items-center justify-center gap-2"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Download Complete History
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full flex items-center justify-center gap-2"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Download Complete History
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={downloadWorkerDataCSV}>
+                        <FileDown className="h-4 w-4 mr-2" />
+                        CSV Format
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={downloadWorkerDataPDF}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        PDF Format
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardContent>
             </Card>

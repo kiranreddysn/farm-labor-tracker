@@ -3,25 +3,69 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchAllShifts, fetchAllPayments } from "@/lib/api";
+import { fetchAllShifts, fetchAllPayments, fetchWorkers } from "@/lib/api";
 import { formatDate } from "@/lib/date-utils";
-import { Download, FileText, ArrowLeft } from "lucide-react";
+import {
+  Download,
+  FileText,
+  ArrowLeft,
+  FileDown,
+  Filter,
+  Search,
+  Calendar,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Link } from "react-router-dom";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Worker } from "@/components/workers/WorkerCard";
 
 export default function ReportsPage() {
   const [shifts, setShifts] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filter states
+  const [filteredShifts, setFilteredShifts] = useState<any[]>([]);
+  const [filteredPayments, setFilteredPayments] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [workerFilter, setWorkerFilter] = useState("all");
+  const [dateRangeFilter, setDateRangeFilter] = useState({
+    startDate: "",
+    endDate: "",
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     async function loadReports() {
       setLoading(true);
       try {
-        const shiftsData = await fetchAllShifts();
-        const paymentsData = await fetchAllPayments();
+        const [shiftsData, paymentsData, workersData] = await Promise.all([
+          fetchAllShifts(),
+          fetchAllPayments(),
+          fetchWorkers(),
+        ]);
 
         setShifts(shiftsData);
+        setFilteredShifts(shiftsData);
         setPayments(paymentsData);
+        setFilteredPayments(paymentsData);
+        setWorkers(workersData);
       } catch (error) {
         console.error("Failed to load reports:", error);
       } finally {
@@ -31,6 +75,62 @@ export default function ReportsPage() {
 
     loadReports();
   }, []);
+
+  // Apply filters when filter criteria change
+  useEffect(() => {
+    // Filter shifts
+    let filteredShiftsResult = [...shifts];
+    let filteredPaymentsResult = [...payments];
+
+    // Apply worker filter
+    if (workerFilter !== "all") {
+      filteredShiftsResult = filteredShiftsResult.filter(
+        (shift) => shift.worker_id === workerFilter,
+      );
+      filteredPaymentsResult = filteredPaymentsResult.filter(
+        (payment) => payment.worker_id === workerFilter,
+      );
+    }
+
+    // Apply search filter (search in worker name)
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filteredShiftsResult = filteredShiftsResult.filter((shift) =>
+        shift.workers?.name?.toLowerCase().includes(searchLower),
+      );
+      filteredPaymentsResult = filteredPaymentsResult.filter((payment) =>
+        payment.workers?.name?.toLowerCase().includes(searchLower),
+      );
+    }
+
+    // Apply date range filter
+    if (dateRangeFilter.startDate) {
+      filteredShiftsResult = filteredShiftsResult.filter(
+        (shift) => shift.shift_date >= dateRangeFilter.startDate,
+      );
+      filteredPaymentsResult = filteredPaymentsResult.filter(
+        (payment) => payment.payment_date >= dateRangeFilter.startDate,
+      );
+    }
+
+    if (dateRangeFilter.endDate) {
+      filteredShiftsResult = filteredShiftsResult.filter(
+        (shift) => shift.shift_date <= dateRangeFilter.endDate,
+      );
+      filteredPaymentsResult = filteredPaymentsResult.filter(
+        (payment) => payment.payment_date <= dateRangeFilter.endDate,
+      );
+    }
+
+    setFilteredShifts(filteredShiftsResult);
+    setFilteredPayments(filteredPaymentsResult);
+  }, [shifts, payments, searchTerm, workerFilter, dateRangeFilter]);
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setWorkerFilter("all");
+    setDateRangeFilter({ startDate: "", endDate: "" });
+  };
 
   const downloadCSV = (data: any[], filename: string) => {
     if (!data.length) return;
@@ -65,9 +165,39 @@ export default function ReportsPage() {
     document.body.removeChild(a);
   };
 
+  const downloadPDF = (data: any[], title: string, filename: string) => {
+    if (!data.length) return;
+
+    const doc = new jsPDF();
+
+    // Add title
+    doc.setFontSize(18);
+    doc.text(title, 14, 22);
+
+    // Add date
+    doc.setFontSize(11);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 30);
+
+    // Get headers and prepare data for autotable
+    const headers = Object.keys(data[0]);
+    const tableData = data.map((row) => headers.map((header) => row[header]));
+
+    // Create table
+    autoTable(doc, {
+      head: [headers],
+      body: tableData,
+      startY: 35,
+      styles: { fontSize: 10, cellPadding: 3 },
+      headStyles: { fillColor: [76, 175, 80], textColor: [255, 255, 255] },
+    });
+
+    // Save PDF
+    doc.save(filename);
+  };
+
   const downloadShiftsReport = () => {
-    // Format data for CSV
-    const formattedShifts = shifts.map((shift) => ({
+    // Format data for CSV - use filtered shifts
+    const formattedShifts = filteredShifts.map((shift) => ({
       Worker: shift.workers?.name || "Unknown",
       Date: formatDate(shift.shift_date),
       Hours: shift.hours,
@@ -83,8 +213,8 @@ export default function ReportsPage() {
   };
 
   const downloadPaymentsReport = () => {
-    // Format data for CSV
-    const formattedPayments = payments.map((payment) => ({
+    // Format data for CSV - use filtered payments
+    const formattedPayments = filteredPayments.map((payment) => ({
       Worker: payment.workers?.name || "Unknown",
       Date: formatDate(payment.payment_date),
       Amount: `$${payment.amount.toFixed(2)}`,
@@ -127,42 +257,228 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="shifts" className="w-full">
-                  <div className="flex justify-between items-center mb-4">
-                    <TabsList>
-                      <TabsTrigger value="shifts">All Shifts</TabsTrigger>
-                      <TabsTrigger value="payments">All Payments</TabsTrigger>
-                    </TabsList>
+                  <div className="flex flex-col gap-4 mb-4">
+                    <div className="flex justify-between items-center">
+                      <TabsList>
+                        <TabsTrigger value="shifts">All Shifts</TabsTrigger>
+                        <TabsTrigger value="payments">All Payments</TabsTrigger>
+                      </TabsList>
 
-                    <div className="flex gap-2">
-                      <TabsContent value="shifts" className="mt-0">
+                      <div className="flex gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={downloadShiftsReport}
-                          disabled={shifts.length === 0}
+                          onClick={() => setShowFilters(!showFilters)}
                           className="flex items-center gap-1"
                         >
-                          <Download className="h-4 w-4" />
-                          Download Report
+                          <Filter className="h-4 w-4" />
+                          {showFilters ? "Hide Filters" : "Show Filters"}
                         </Button>
-                      </TabsContent>
-                      <TabsContent value="payments" className="mt-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={downloadPaymentsReport}
-                          disabled={payments.length === 0}
-                          className="flex items-center gap-1"
-                        >
-                          <Download className="h-4 w-4" />
-                          Download Report
-                        </Button>
-                      </TabsContent>
+                        <TabsContent value="shifts" className="mt-0">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={filteredShifts.length === 0}
+                                className="flex items-center gap-1"
+                              >
+                                <Download className="h-4 w-4" />
+                                Download Report
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <DropdownMenuItem onClick={downloadShiftsReport}>
+                                <FileDown className="h-4 w-4 mr-2" />
+                                CSV Format
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  const formattedShifts = filteredShifts.map(
+                                    (shift) => ({
+                                      Worker: shift.workers?.name || "Unknown",
+                                      Date: formatDate(shift.shift_date),
+                                      Hours: shift.hours,
+                                      "Hourly Rate": `$${shift.hourly_rate.toFixed(2)}`,
+                                      "Total Amount": `$${shift.total_amount.toFixed(2)}`,
+                                      Notes: shift.notes || "",
+                                    }),
+                                  );
+                                  downloadPDF(
+                                    formattedShifts,
+                                    "Farm Labor Shifts Report",
+                                    `farm_shifts_report_${new Date().toISOString().split("T")[0]}.pdf`,
+                                  );
+                                }}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                PDF Format
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TabsContent>
+                        <TabsContent value="payments" className="mt-0">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={filteredPayments.length === 0}
+                                className="flex items-center gap-1"
+                              >
+                                <Download className="h-4 w-4" />
+                                Download Report
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <DropdownMenuItem
+                                onClick={downloadPaymentsReport}
+                              >
+                                <FileDown className="h-4 w-4 mr-2" />
+                                CSV Format
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  const formattedPayments =
+                                    filteredPayments.map((payment) => ({
+                                      Worker:
+                                        payment.workers?.name || "Unknown",
+                                      Date: formatDate(payment.payment_date),
+                                      Amount: `$${payment.amount.toFixed(2)}`,
+                                      Notes: payment.notes || "",
+                                    }));
+                                  downloadPDF(
+                                    formattedPayments,
+                                    "Farm Labor Payments Report",
+                                    `farm_payments_report_${new Date().toISOString().split("T")[0]}.pdf`,
+                                  );
+                                }}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                PDF Format
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TabsContent>
+                      </div>
                     </div>
+
+                    {showFilters && (
+                      <div className="bg-gray-50 p-4 rounded-md border">
+                        <h3 className="text-sm font-medium mb-3">
+                          Filter Reports
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <Label
+                              htmlFor="search"
+                              className="text-xs mb-1 block"
+                            >
+                              Search by Worker Name
+                            </Label>
+                            <div className="relative">
+                              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                              <Input
+                                id="search"
+                                placeholder="Search..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-8"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label
+                              htmlFor="worker"
+                              className="text-xs mb-1 block"
+                            >
+                              Filter by Worker
+                            </Label>
+                            <Select
+                              value={workerFilter}
+                              onValueChange={setWorkerFilter}
+                            >
+                              <SelectTrigger id="worker">
+                                <SelectValue placeholder="All Workers" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All Workers</SelectItem>
+                                {workers.map((worker) => (
+                                  <SelectItem key={worker.id} value={worker.id}>
+                                    {worker.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label
+                                htmlFor="startDate"
+                                className="text-xs mb-1 block"
+                              >
+                                Start Date
+                              </Label>
+                              <div className="relative">
+                                <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                                <Input
+                                  id="startDate"
+                                  type="date"
+                                  value={dateRangeFilter.startDate}
+                                  onChange={(e) =>
+                                    setDateRangeFilter((prev) => ({
+                                      ...prev,
+                                      startDate: e.target.value,
+                                    }))
+                                  }
+                                  className="pl-8"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label
+                                htmlFor="endDate"
+                                className="text-xs mb-1 block"
+                              >
+                                End Date
+                              </Label>
+                              <div className="relative">
+                                <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                                <Input
+                                  id="endDate"
+                                  type="date"
+                                  value={dateRangeFilter.endDate}
+                                  onChange={(e) =>
+                                    setDateRangeFilter((prev) => ({
+                                      ...prev,
+                                      endDate: e.target.value,
+                                    }))
+                                  }
+                                  className="pl-8"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end mt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={resetFilters}
+                            className="text-sm"
+                          >
+                            Reset Filters
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <TabsContent value="shifts" className="border rounded-md">
-                    {shifts.length > 0 ? (
+                    {filteredShifts.length > 0 ? (
                       <div className="overflow-x-auto max-h-[400px]">
                         <table className="w-full">
                           <thead className="bg-green-50 sticky top-0">
@@ -176,7 +492,7 @@ export default function ReportsPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {shifts.map((shift) => (
+                            {filteredShifts.map((shift) => (
                               <tr key={shift.id} className="border-t">
                                 <td className="px-4 py-2">
                                   {shift.workers?.name || "Unknown"}
@@ -203,7 +519,7 @@ export default function ReportsPage() {
                                 Total
                               </td>
                               <td className="px-4 py-2">
-                                {shifts
+                                {filteredShifts
                                   .reduce(
                                     (sum, shift) => sum + Number(shift.hours),
                                     0,
@@ -213,7 +529,7 @@ export default function ReportsPage() {
                               <td className="px-4 py-2"></td>
                               <td className="px-4 py-2">
                                 $
-                                {shifts
+                                {filteredShifts
                                   .reduce(
                                     (sum, shift) =>
                                       sum + Number(shift.total_amount),
@@ -235,7 +551,7 @@ export default function ReportsPage() {
                   </TabsContent>
 
                   <TabsContent value="payments" className="border rounded-md">
-                    {payments.length > 0 ? (
+                    {filteredPayments.length > 0 ? (
                       <div className="overflow-x-auto max-h-[400px]">
                         <table className="w-full">
                           <thead className="bg-green-50 sticky top-0">
@@ -247,7 +563,7 @@ export default function ReportsPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {payments.map((payment) => (
+                            {filteredPayments.map((payment) => (
                               <tr key={payment.id} className="border-t">
                                 <td className="px-4 py-2">
                                   {payment.workers?.name || "Unknown"}
@@ -271,7 +587,7 @@ export default function ReportsPage() {
                               </td>
                               <td className="px-4 py-2">
                                 $
-                                {payments
+                                {filteredPayments
                                   .reduce(
                                     (sum, payment) =>
                                       sum + Number(payment.amount),

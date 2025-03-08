@@ -9,6 +9,7 @@ import { ShiftForm } from "./ShiftForm";
 import { PaymentForm } from "./PaymentForm";
 import { WorkerHistory } from "./WorkerHistory";
 import { ReportsDialog } from "./ReportsDialog";
+import { BulkImportDialog } from "./BulkImportDialog";
 import {
   Clock,
   DollarSign,
@@ -17,6 +18,7 @@ import {
   Plus,
   Search,
   Users,
+  Upload,
 } from "lucide-react";
 import {
   fetchWorkers,
@@ -108,6 +110,7 @@ export function Dashboard() {
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<Worker | undefined>(
     undefined,
   );
@@ -313,7 +316,6 @@ export function Dashboard() {
     const worker = workers.find((w) => w.id === workerId);
     setSelectedWorker(worker);
     setRecordPaymentOpen(true);
-
   };
 
   // Handle viewing worker history
@@ -394,15 +396,27 @@ export function Dashboard() {
             </Select>
           </div>
 
-          <Button
-            onClick={() => setAddWorkerOpen(true)}
-            className="bg-green-600 hover:bg-green-700"
-            disabled={!canWrite}
-            title={!canWrite ? "Only admin can add workers" : ""}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Worker
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setAddWorkerOpen(true)}
+              className="bg-green-600 hover:bg-green-700"
+              disabled={!canWrite}
+              title={!canWrite ? "Only admin can add workers" : ""}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Worker
+            </Button>
+
+            <Button
+              onClick={() => setBulkImportOpen(true)}
+              className="bg-green-600 hover:bg-green-700"
+              disabled={!canWrite}
+              title={!canWrite ? "Only admin can import workers" : ""}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import Workers
+            </Button>
+          </div>
 
           <Button
             onClick={() => setLogShiftOpen(true)}
@@ -536,6 +550,12 @@ export function Dashboard() {
       />
 
       <ReportsDialog open={reportsOpen} onOpenChange={setReportsOpen} />
+
+      <BulkImportDialog
+        open={bulkImportOpen}
+        onOpenChange={setBulkImportOpen}
+        onSuccess={loadWorkers}
+      />
     </div>
   );
 }

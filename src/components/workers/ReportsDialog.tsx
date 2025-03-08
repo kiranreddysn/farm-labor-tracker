@@ -10,7 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchAllShifts, fetchAllPayments } from "@/lib/api";
 import { formatDate } from "@/lib/date-utils";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, FileDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface ReportsDialogProps {
   open: boolean;
@@ -76,6 +84,36 @@ export function ReportsDialog({ open, onOpenChange }: ReportsDialogProps) {
     document.body.removeChild(a);
   };
 
+  const downloadPDF = (data: any[], title: string, filename: string) => {
+    if (!data.length) return;
+
+    const doc = new jsPDF();
+
+    // Add title
+    doc.setFontSize(18);
+    doc.text(title, 14, 22);
+
+    // Add date
+    doc.setFontSize(11);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 30);
+
+    // Get headers and prepare data for autotable
+    const headers = Object.keys(data[0]);
+    const tableData = data.map((row) => headers.map((header) => row[header]));
+
+    // Create table
+    autoTable(doc, {
+      head: [headers],
+      body: tableData,
+      startY: 35,
+      styles: { fontSize: 10, cellPadding: 3 },
+      headStyles: { fillColor: [76, 175, 80], textColor: [255, 255, 255] },
+    });
+
+    // Save PDF
+    doc.save(filename);
+  };
+
   const downloadShiftsReport = () => {
     // Format data for CSV
     const formattedShifts = shifts.map((shift) => ({
@@ -132,28 +170,84 @@ export function ReportsDialog({ open, onOpenChange }: ReportsDialogProps) {
 
               <div className="flex gap-2">
                 <TabsContent value="shifts" className="mt-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={downloadShiftsReport}
-                    disabled={shifts.length === 0}
-                    className="flex items-center gap-1"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download Report
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={shifts.length === 0}
+                        className="flex items-center gap-1"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Report
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={downloadShiftsReport}>
+                        <FileDown className="h-4 w-4 mr-2" />
+                        CSV Format
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const formattedShifts = shifts.map((shift) => ({
+                            Worker: shift.workers?.name || "Unknown",
+                            Date: formatDate(shift.shift_date),
+                            Hours: shift.hours,
+                            "Hourly Rate": `${shift.hourly_rate.toFixed(2)}`,
+                            "Total Amount": `${shift.total_amount.toFixed(2)}`,
+                            Notes: shift.notes || "",
+                          }));
+                          downloadPDF(
+                            formattedShifts,
+                            "Farm Labor Shifts Report",
+                            `farm_shifts_report_${new Date().toISOString().split("T")[0]}.pdf`,
+                          );
+                        }}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        PDF Format
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TabsContent>
                 <TabsContent value="payments" className="mt-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={downloadPaymentsReport}
-                    disabled={payments.length === 0}
-                    className="flex items-center gap-1"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download Report
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={payments.length === 0}
+                        className="flex items-center gap-1"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Report
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={downloadPaymentsReport}>
+                        <FileDown className="h-4 w-4 mr-2" />
+                        CSV Format
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const formattedPayments = payments.map((payment) => ({
+                            Worker: payment.workers?.name || "Unknown",
+                            Date: formatDate(payment.payment_date),
+                            Amount: `${payment.amount.toFixed(2)}`,
+                            Notes: payment.notes || "",
+                          }));
+                          downloadPDF(
+                            formattedPayments,
+                            "Farm Labor Payments Report",
+                            `farm_payments_report_${new Date().toISOString().split("T")[0]}.pdf`,
+                          );
+                        }}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        PDF Format
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TabsContent>
               </div>
             </div>
