@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Worker } from "./WorkerCard";
+import { ImageUploader } from "./ImageUploader";
+import { compressImage } from "@/lib/image-utils";
 
 interface WorkerFormProps {
   open: boolean;
@@ -42,14 +44,38 @@ export function WorkerForm({
       setName(worker.name);
       setStatus(worker.status);
       setAvatarUrl(worker.avatarUrl || "");
+    } else {
+      // Reset form when adding a new worker
+      setName("");
+      setStatus("active");
+      setAvatarUrl("");
     }
-  }, [worker]);
+  }, [worker, open]);
 
   const [name, setName] = useState(worker?.name || "");
   const [status, setStatus] = useState<"active" | "inactive" | "on-leave">(
     worker?.status || "active",
   );
   const [avatarUrl, setAvatarUrl] = useState(worker?.avatarUrl || "");
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+
+  const handleImageChange = async (imageDataUrl: string | undefined) => {
+    if (imageDataUrl) {
+      setIsProcessingImage(true);
+      try {
+        // Compress the image before saving
+        const compressed = await compressImage(imageDataUrl, 400, 0.8);
+        setAvatarUrl(compressed);
+      } catch (error) {
+        console.error("Error processing image:", error);
+        setAvatarUrl(imageDataUrl); // Fallback to uncompressed image
+      } finally {
+        setIsProcessingImage(false);
+      }
+    } else {
+      setAvatarUrl("");
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +88,11 @@ export function WorkerForm({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onPointerDownOutside={(e) => e.preventDefault()}
+    >
       <DialogContent className="w-[95vw] max-w-full sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -105,21 +135,29 @@ export function WorkerForm({
               </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="avatar" className="text-right">
-                Avatar URL
-              </Label>
-              <Input
-                id="avatar"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                className="col-span-3"
-                placeholder="https://example.com/avatar.jpg"
-              />
+              <Label className="text-right">Profile Photo</Label>
+              <div className="col-span-3">
+                <ImageUploader
+                  initialImage={avatarUrl}
+                  onImageChange={handleImageChange}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" className="bg-green-600 hover:bg-green-700">
-              Save Worker
+            <Button
+              type="submit"
+              className="bg-green-600 hover:bg-green-700"
+              disabled={isProcessingImage}
+            >
+              {isProcessingImage ? (
+                <>
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                  Processing...
+                </>
+              ) : (
+                "Save Worker"
+              )}
             </Button>
           </DialogFooter>
         </form>
