@@ -64,7 +64,7 @@ export function WorkerCard({
 
   return (
     <Card
-      className="w-full bg-white border border-gray-200 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+      className="h-full bg-white border border-gray-200 overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
       onClick={() => navigate(`/worker/${worker.id}`)}
     >
       <CardHeader

@@ -150,9 +150,10 @@ export function ReportsDialog({ open, onOpenChange }: ReportsDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-full sm:max-w-[700px]">
         <DialogHeader>
-          <DialogTitle>Farm Labor Reports</DialogTitle>
+          <DialogTitle>Quick Reports</DialogTitle>
           <DialogDescription>
-            View and download reports for all shifts and payments.
+            View and download basic reports for shifts and payments. For more
+            detailed analytics, visit the Analytics tab in the main dashboard.
           </DialogDescription>
         </DialogHeader>
 

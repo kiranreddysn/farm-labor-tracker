@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { LogoutButton } from "@/components/auth/LogoutButton";
-import { Users, BarChart, Settings } from "lucide-react";
+import { Users, BarChart, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { hasWritePermission } from "@/lib/permissions";
@@ -36,8 +36,8 @@ export function Navbar() {
                   : "text-gray-600 hover:bg-green-50 hover:text-green-700",
               )}
             >
-              <Users className="h-4 w-4 mr-2" />
-              Workers
+              <Home className="h-4 w-4 mr-2" />
+              Dashboard
             </Link>
 
             {isAdmin && (
@@ -51,7 +51,7 @@ export function Navbar() {
                 )}
               >
                 <BarChart className="h-4 w-4 mr-2" />
-                Reports
+                Advanced Reports
               </Link>
             )}
 

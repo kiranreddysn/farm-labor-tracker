@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { WorkerCard, Worker } from "./WorkerCard";
+import { WorkerCard } from "./WorkerCard";
+import type { Worker } from "./WorkerCard";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,7 +14,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { WorkerTable } from "./WorkerTable";
+import { VirtualizedWorkerTable } from "./VirtualizedWorkerTable";
+import { VirtualizedWorkerList } from "./VirtualizedWorkerList";
 import { WorkerForm } from "./WorkerForm";
 import { ShiftForm } from "./ShiftForm";
 import { PaymentForm } from "./PaymentForm";
@@ -152,72 +154,150 @@ export function Dashboard() {
     loadWorkers();
   }, [loadWorkers]);
 
-  // Filter and sort workers
-  const filterAndSortWorkers = () => {
-    let result = [...workers];
-
-    // Apply search filter
-    if (searchTerm) {
-      result = result.filter((worker) =>
-        worker.name.toLowerCase().includes(searchTerm.toLowerCase()),
+  // Filter and sort workers with debounce and memoization
+  const filterAndSortWorkers = useCallback(() => {
+    // Use a web worker for filtering and sorting if available
+    if (window.Worker) {
+      const workerBlob = new Blob(
+        [
+          `
+        self.onmessage = function(e) {
+          const { workers, searchTerm, statusFilter, sortColumn, sortDirection } = e.data;
+          
+          // Apply search filter
+          let result = workers;
+          if (searchTerm) {
+            result = result.filter(worker => 
+              worker.name.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+          }
+          
+          // Apply status filter
+          if (statusFilter !== 'all') {
+            result = result.filter(worker => worker.status === statusFilter);
+          }
+          
+          // Apply sorting
+          result.sort((a, b) => {
+            let comparison = 0;
+            switch (sortColumn) {
+              case 'name':
+                comparison = a.name.localeCompare(b.name);
+                break;
+              case 'status':
+                comparison = a.status.localeCompare(b.status);
+                break;
+              case 'hoursThisWeek':
+                comparison = a.hoursThisWeek - b.hoursThisWeek;
+                break;
+              case 'pendingPayment':
+                comparison = a.pendingPayment - b.pendingPayment;
+                break;
+              default:
+                comparison = 0;
+            }
+            return sortDirection === 'asc' ? comparison : -comparison;
+          });
+          
+          self.postMessage(result);
+        };
+        `,
+        ],
+        { type: "application/javascript" },
       );
-    }
 
-    // Apply status filter
-    if (statusFilter !== "all") {
-      result = result.filter((worker) => worker.status === statusFilter);
-    }
+      const worker = new Worker(URL.createObjectURL(workerBlob));
 
-    // Apply sorting
-    result.sort((a, b) => {
-      let comparison = 0;
-      switch (sortColumn) {
-        case "name":
-          comparison = a.name.localeCompare(b.name);
-          break;
-        case "status":
-          comparison = a.status.localeCompare(b.status);
-          break;
-        case "hoursThisWeek":
-          comparison = a.hoursThisWeek - b.hoursThisWeek;
-          break;
-        case "pendingPayment":
-          comparison = a.pendingPayment - b.pendingPayment;
-          break;
-        default:
-          comparison = 0;
+      worker.onmessage = function (e) {
+        setFilteredWorkers(e.data);
+        worker.terminate(); // Clean up the worker when done
+      };
+
+      worker.postMessage({
+        workers,
+        searchTerm,
+        statusFilter,
+        sortColumn,
+        sortDirection,
+      });
+    } else {
+      // Fallback for browsers without Web Worker support
+      let result = [...workers];
+
+      // Apply search filter
+      if (searchTerm) {
+        result = result.filter((worker) =>
+          worker.name.toLowerCase().includes(searchTerm.toLowerCase()),
+        );
       }
-      return sortDirection === "asc" ? comparison : -comparison;
-    });
 
-    setFilteredWorkers(result);
-  };
+      // Apply status filter
+      if (statusFilter !== "all") {
+        result = result.filter((worker) => worker.status === statusFilter);
+      }
+
+      // Apply sorting
+      result.sort((a, b) => {
+        let comparison = 0;
+        switch (sortColumn) {
+          case "name":
+            comparison = a.name.localeCompare(b.name);
+            break;
+          case "status":
+            comparison = a.status.localeCompare(b.status);
+            break;
+          case "hoursThisWeek":
+            comparison = a.hoursThisWeek - b.hoursThisWeek;
+            break;
+          case "pendingPayment":
+            comparison = a.pendingPayment - b.pendingPayment;
+            break;
+          default:
+            comparison = 0;
+        }
+        return sortDirection === "asc" ? comparison : -comparison;
+      });
+
+      setFilteredWorkers(result);
+    }
+  }, [workers, searchTerm, statusFilter, sortColumn, sortDirection]);
 
   // Apply filters and sorting when dependencies change
   useEffect(() => {
-    filterAndSortWorkers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workers, searchTerm, statusFilter, sortColumn, sortDirection]);
+    // Use requestAnimationFrame to avoid blocking the main thread
+    const animationFrameId = requestAnimationFrame(() => {
+      filterAndSortWorkers();
+    });
 
-  // Handle search input change
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-  };
+    // Clean up
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [filterAndSortWorkers]);
+
+  // Direct search without debounce for better responsiveness
+  const handleSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setSearchTerm(e.target.value);
+    },
+    [],
+  );
 
   // Handle status filter change
-  const handleStatusFilterChange = (value: string) => {
+  const handleStatusFilterChange = useCallback((value: string) => {
     setStatusFilter(value);
-  };
+  }, []);
 
   // Handle column sort
-  const handleSortColumn = (column: string) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  };
+  const handleSortColumn = useCallback(
+    (column: string) => {
+      if (sortColumn === column) {
+        setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+      } else {
+        setSortColumn(column);
+        setSortDirection("asc");
+      }
+    },
+    [sortColumn, sortDirection],
+  );
 
   // Handle adding a new worker
   const handleAddWorker = async (
@@ -400,11 +480,8 @@ export function Dashboard() {
   };
 
   return (
-    <div className="container mx-auto py-4 sm:py-6 px-2 sm:px-6 max-w-7xl">
+    <div>
       <header className="mb-4 sm:mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-green-800">
-          Worker Dashboard
-        </h1>
         <p className="text-gray-600">
           Manage your farm workers, shifts, and payments
         </p>
@@ -415,13 +492,13 @@ export function Dashboard() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
             placeholder="Search workers..."
-            value={searchTerm}
-            onChange={handleSearchChange}
+            defaultValue={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
           />
         </div>
 
-        <div className="flex flex-wrap gap-2 justify-between sm:justify-start">
+        <div className="flex flex-wrap gap-2 justify-between sm:justify-start overflow-x-auto pb-2">
           <div className="w-40">
             <Select
               value={statusFilter}
@@ -486,15 +563,14 @@ export function Dashboard() {
             Record Payment
           </Button>
 
-          <Link to="/reports">
-            <Button
-              variant="outline"
-              className="border-green-200 hover:bg-green-50 hover:text-green-700"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Reports
-            </Button>
-          </Link>
+          <Button
+            onClick={() => setReportsOpen(true)}
+            variant="outline"
+            className="border-green-200 hover:bg-green-50 hover:text-green-700"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Quick Reports
+          </Button>
         </div>
       </div>
 
@@ -508,35 +584,34 @@ export function Dashboard() {
       ) : (
         <div className="bg-white rounded-lg border shadow-sm p-6">
           <Tabs defaultValue="cards" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="cards" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Cards
-              </TabsTrigger>
-              <TabsTrigger value="table" className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                Table
-              </TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto pb-2">
+              <TabsList className="mb-4 w-full sm:w-auto">
+                <TabsTrigger value="cards" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Cards
+                </TabsTrigger>
+                <TabsTrigger value="table" className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Table
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="cards" className="mt-0">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredWorkers.map((worker) => (
-                  <WorkerCard
-                    key={worker.id}
-                    worker={worker}
-                    onLogShift={handleLogShift}
-                    onRecordPayment={handleRecordPayment}
-                    onEditWorker={handleEditWorker}
-                    onViewHistory={handleViewHistory}
-                    onDeleteWorker={handleDeleteWorker}
-                  />
-                ))}
+              <div className="pb-4">
+                <VirtualizedWorkerList
+                  workers={filteredWorkers}
+                  onLogShift={handleLogShift}
+                  onRecordPayment={handleRecordPayment}
+                  onEditWorker={handleEditWorker}
+                  onViewHistory={handleViewHistory}
+                  onDeleteWorker={handleDeleteWorker}
+                />
               </div>
             </TabsContent>
 
             <TabsContent value="table" className="mt-0">
-              <WorkerTable
+              <VirtualizedWorkerTable
                 workers={filteredWorkers}
                 onLogShift={handleLogShift}
                 onRecordPayment={handleRecordPayment}
